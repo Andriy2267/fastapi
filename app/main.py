@@ -12,6 +12,7 @@ app = FastAPI()
 class Post(BaseModel):
     title: str
     content: str
+    published: bool = True
 
 while True:
     try:
@@ -31,7 +32,7 @@ my_post = [
 ]
 
 # Function to find a post by ID
-async def find_post(id):
+def find_post(id):
     for p in my_post:
         if p["id"] == id:
             return p
@@ -53,39 +54,46 @@ async def get_posts():
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 async def post_info(post: Post):
-    post_dict = post.dict()
-    post_dict["id"] = randrange(1, 1000000)
-    my_post.append(post_dict)
-    return {"your post": post_dict}
+    cursor.execute("""INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING * """,
+                   (post.title, post.content, post.published))
+    new_post = cursor.fetchone()
+    conn.commit()
+
+    return {"your post": new_post}
+
 
 @app.get("/posts/{id}")
-async def get_post(id: int):
-    find = find_post(id)
-    if not find:
+def get_post(id: int):
+    cursor.execute("""SELECT * FROM posts WHERE id = %s """, (str(id)))
+    post = cursor.fetchone()
+    if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"This id {id} was not found")
-    return {"Your post": find}
+    return {"Your post": post}
+
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_post(id: int):
-    index = find_index_post(id)
+def delete_post(id: int):
+    cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (str(id),))
+    deleted_post = cursor.fetchone()
+    conn.commit()
 
-    if index == None:
+    if deleted_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="message: " + f"such id {id} was not found")
-
-    my_post.pop(index)
+    
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 @app.put("/posts/{id}")
 async def update_post(id: int, post: Post):
-    index = find_index_post(id)
+    cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""", 
+                   (post.title, post.content, post.published, str(id)))
+    updated_post = cursor.fetchone()
+    conn.commit()
 
-    if index == None:
+    if updated_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="message" + f"such {id} id was not found")
-    post_dict = post.dict()
-    post_dict["id"] = id
-    my_post[index] = post_dict
 
-    return {"message": post_dict}
+    return {"message": updated_post}
