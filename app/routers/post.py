@@ -38,8 +38,7 @@ async def get_post(id: int, db: Session = Depends(get_db), current_user: int = D
     # post = db.query(models.Post).filter(models.Post.id == id).first()
 
     post = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(
-        models.Vote, models.Vote.post_id == models.Post.id, isouter=True).group_by(models.Post.id).filter
-    (models.Post.id == id).first()
+        models.Vote, models.Vote.post_id == models.Post.id, isouter=True).group_by(models.Post.id).filter(models.Post.id == id).first()
 
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -58,8 +57,7 @@ def delete_post(id: int, db: Session = Depends(get_db),
                             detail="message: " + f"such id {id} was not found")
     
     if post.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to"
-        "perform requested action")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to perform requested action")
 
     post_query.delete(synchronize_session=False)
     db.commit()
